@@ -1,42 +1,46 @@
 <?php 
 include 'includes/header.php';
-require_once 'config/whatsapp.php';
+require_once 'config/email.php';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (isset($_POST['register'])) {
         $nama = mysqli_real_escape_string($conn, $_POST['nama']);
+        $email = mysqli_real_escape_string($conn, $_POST['email']);
         $telepon = mysqli_real_escape_string($conn, $_POST['telepon']);
         $alamat = mysqli_real_escape_string($conn, $_POST['alamat']);
         $username = mysqli_real_escape_string($conn, $_POST['username']);
         $password = mysqli_real_escape_string($conn, $_POST['password']);
         
         // Cek apakah username sudah ada
-        $check_query = "SELECT * FROM users WHERE username = '$username'";
+        $check_query = "SELECT * FROM users WHERE username = '$username' OR email = '$email'";
         $check_result = mysqli_query($conn, $check_query);
         
         if (mysqli_num_rows($check_result) > 0) {
-            $error = "Username sudah digunakan. Silakan pilih username lain.";
+            $user = mysqli_fetch_assoc($check_result);
+            if ($user['username'] == $username) {
+                $error = "Username sudah digunakan. Silakan pilih username lain.";
+            } else {
+                $error = "Email sudah terdaftar. Silakan gunakan email lain.";
+            }
         } else {
             // Generate kode verifikasi
-            $verification_code = generateVerificationCode();
+            $verification_code = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
             $expires = date('Y-m-d H:i:s', strtotime('+10 minutes'));
             
             // Insert user baru
-            $query = "INSERT INTO users (nama, telepon, alamat, username, password, verification_code, verification_expires) 
-                     VALUES ('$nama', '$telepon', '$alamat', '$username', '$password', '$verification_code', '$expires')";
+            $query = "INSERT INTO users (nama, email, telepon, alamat, username, password, verification_code, verification_expires) 
+                     VALUES ('$nama', '$email', '$telepon', '$alamat', '$username', '$password', '$verification_code', '$expires')";
             
             if (mysqli_query($conn, $query)) {
-                // Kirim kode verifikasi via WhatsApp
-                $response = sendWhatsAppVerification($telepon, $nama, $verification_code);
-                
-                if ($response['success']) {
+                // Kirim email verifikasi
+                if (sendVerificationEmail($email, $nama, $verification_code)) {
                     // Redirect ke halaman verifikasi
                     $_SESSION['temp_user_id'] = mysqli_insert_id($conn);
                     header('Location: verify.php');
                     exit();
                 } else {
-                    $error = "Gagal mengirim kode verifikasi. Silakan coba lagi.";
-                    // Hapus user jika gagal kirim kode
+                    $error = "Gagal mengirim email verifikasi. Silakan coba lagi.";
+                    // Hapus user jika gagal kirim email
                     mysqli_query($conn, "DELETE FROM users WHERE id = " . mysqli_insert_id($conn));
                 }
             } else {
@@ -69,20 +73,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </div>
 
         <div>
-            <label class="block text-gray-700 text-sm font-bold mb-2" for="telepon">
-                Nomor WhatsApp
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="email">
+                Email
             </label>
-            <div class="relative">
-                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-600">+62</span>
-                <input class="shadow appearance-none border rounded w-full py-2 pl-12 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                       id="telepon" 
-                       type="tel" 
-                       name="telepon" 
-                       pattern="[0-9]+" 
-                       placeholder="8xxxxxxxxxx"
-                       required>
-            </div>
-            <p class="text-sm text-gray-500 mt-1">Contoh: 81234567890 (tanpa angka 0 di depan)</p>
+            <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                   id="email" 
+                   type="email" 
+                   name="email" 
+                   required>
+        </div>
+
+        <div>
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="telepon">
+                Nomor Telepon
+            </label>
+            <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                   id="telepon" 
+                   type="tel" 
+                   name="telepon" 
+                   pattern="[0-9]+" 
+                   required>
         </div>
 
         <div>
