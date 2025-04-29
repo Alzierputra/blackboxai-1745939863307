@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../config/whatsapp.php';
+require_once __DIR__ . '/../config/email.php';
 
 /**
  * Generate kode verifikasi
@@ -7,18 +7,6 @@ require_once __DIR__ . '/../config/whatsapp.php';
  */
 function generateVerificationCode() {
     return str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-}
-
-/**
- * Kirim kode verifikasi via WhatsApp
- * @param string $phone_number
- * @param string $nama
- * @param string $code
- * @return array
- */
-function sendWhatsAppVerification($phone_number, $nama, $code) {
-    $message = getVerificationMessageTemplate($nama, $code);
-    return sendWhatsAppMessage($phone_number, $message);
 }
 
 /**
@@ -54,7 +42,7 @@ function verifyCode($user_id, $code) {
 }
 
 /**
- * Buat pengingat pembayaran
+ * Buat pengingat pembayaran via email
  * @param int $booking_id
  * @return bool
  */
@@ -64,12 +52,12 @@ function createPaymentReminder($booking_id) {
     $booking_id = mysqli_real_escape_string($conn, $booking_id);
     
     // Buat pengingat segera
-    $query = "INSERT INTO reminders (booking_id, type, scheduled_time) 
+    $query = "INSERT INTO email_notifications (booking_id, type, scheduled_time) 
               VALUES ('$booking_id', 'payment', NOW())";
     mysqli_query($conn, $query);
     
     // Buat pengingat H-1 batas pembayaran
-    $query = "INSERT INTO reminders (booking_id, type, scheduled_time) 
+    $query = "INSERT INTO email_notifications (booking_id, type, scheduled_time) 
               SELECT '$booking_id', 'payment', 
                      DATE_SUB(DATE_ADD(tanggal_booking, INTERVAL 1 DAY), INTERVAL 1 DAY)
               FROM booking 
@@ -78,7 +66,7 @@ function createPaymentReminder($booking_id) {
 }
 
 /**
- * Buat pengingat jadwal main
+ * Buat pengingat jadwal main via email
  * @param int $booking_id
  * @return bool
  */
@@ -88,7 +76,7 @@ function createScheduleReminder($booking_id) {
     $booking_id = mysqli_real_escape_string($conn, $booking_id);
     
     // Buat pengingat H-1 sebelum main
-    $query = "INSERT INTO reminders (booking_id, type, scheduled_time) 
+    $query = "INSERT INTO email_notifications (booking_id, type, scheduled_time) 
               SELECT '$booking_id', 'schedule', 
                      DATE_SUB(tanggal_main, INTERVAL 1 DAY)
               FROM booking 
@@ -96,7 +84,7 @@ function createScheduleReminder($booking_id) {
     mysqli_query($conn, $query);
     
     // Buat pengingat 1 jam sebelum main
-    $query = "INSERT INTO reminders (booking_id, type, scheduled_time) 
+    $query = "INSERT INTO email_notifications (booking_id, type, scheduled_time) 
               SELECT '$booking_id', 'schedule', 
                      DATE_SUB(CONCAT(tanggal_main, ' ', jam_mulai), INTERVAL 1 HOUR)
               FROM booking 
@@ -137,4 +125,70 @@ function uploadBuktiPembayaran($file) {
     }
     
     return false;
+}
+
+/**
+ * Kirim email konfirmasi booking
+ * @param int $booking_id
+ * @return bool
+ */
+function sendBookingConfirmationEmail($booking_id) {
+    global $conn;
+    
+    $query = "SELECT b.*, u.nama, u.email, l.nama as nama_lapangan 
+              FROM booking b
+              JOIN users u ON b.user_id = u.id
+              JOIN lapangan l ON b.lapangan_id = l.id
+              WHERE b.id = '$booking_id'";
+              
+    $result = mysqli_query($conn, $query);
+    $booking = mysqli_fetch_assoc($result);
+    
+    $mail = new PHPMailer(true);
+
+    try {
+        // Konfigurasi Server
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = 'your-email@gmail.com';
+        $mail->Password   = 'your-app-password';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
+        $mail->CharSet    = 'UTF-8';
+
+        // Pengirim dan Penerima
+        $mail->setFrom('your-email@gmail.com', 'Futsal Sayan');
+        $mail->addAddress($booking['email'], $booking['nama']);
+
+        // Konten
+        $mail->isHTML(true);
+        $mail->Subject = 'Konfirmasi Booking Lapangan - Futsal Sayan';
+        
+        $mail->Body = '
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #2C5F2D;">Konfirmasi Booking</h2>
+            <p>Halo ' . htmlspecialchars($booking['nama']) . ',</p>
+            <p>Terima kasih telah melakukan booking di Futsal Sayan. Berikut detail booking Anda:</p>
+            <div style="background-color: #f4f4f4; padding: 15px; margin: 20px 0;">
+                <p><strong>Detail Booking:</strong></p>
+                <ul>
+                    <li>Lapangan: ' . htmlspecialchars($booking['nama_lapangan']) . '</li>
+                    <li>Tanggal: ' . date('d/m/Y', strtotime($booking['tanggal_main'])) . '</li>
+                    <li>Jam: ' . date('H:i', strtotime($booking['jam_mulai'])) . ' - ' . 
+                               date('H:i', strtotime($booking['jam_selesai'])) . '</li>
+                    <li>Total: Rp ' . number_format($booking['total_harga'], 0, ',', '.') . '</li>
+                    <li>Metode Pembayaran: ' . ucfirst($booking['metode_pembayaran']) . '</li>
+                </ul>
+            </div>
+            <p>Mohon segera lakukan pembayaran untuk mengkonfirmasi booking Anda.</p>
+            <hr style="border: 1px solid #eee; margin: 20px 0;">
+            <p style="color: #666; font-size: 12px;">Email ini dikirim secara otomatis, mohon tidak membalas email ini.</p>
+        </div>';
+
+        return $mail->send();
+    } catch (Exception $e) {
+        error_log("Email Error: {$mail->ErrorInfo}");
+        return false;
+    }
 }
