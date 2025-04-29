@@ -56,6 +56,7 @@ $result_recent = mysqli_query($conn, $query_recent);
                     <a href="dashboard.php" class="hover:text-green-200">Dashboard</a>
                     <a href="konfirmasi.php" class="hover:text-green-200">Konfirmasi Pembayaran</a>
                     <a href="lapangan.php" class="hover:text-green-200">Kelola Lapangan</a>
+                    <a href="../send_emails.php" class="hover:text-green-200">Kirim Email</a>
                     <a href="../logout.php" class="hover:text-green-200">Keluar</a>
                 </div>
             </div>
@@ -86,6 +87,59 @@ $result_recent = mysqli_query($conn, $query_recent);
                 <a href="<?php echo $export_url; ?>" class="bg-green-600 text-white px-4 py-1 rounded hover:bg-green-700">
                     <i class="fas fa-file-excel mr-1"></i> Export Excel
                 </a>
+            </div>
+        </div>
+
+        <!-- Email Stats -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h3 class="text-xl font-semibold mb-4">Statistik Email</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <?php
+                // Statistik email
+                $query_emails = "SELECT 
+                    SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as sent,
+                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+                    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
+                FROM email_notifications";
+                $result_emails = mysqli_query($conn, $query_emails);
+                $email_stats = mysqli_fetch_assoc($result_emails);
+                ?>
+                
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-green-100 text-green-600">
+                            <i class="fas fa-check text-2xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-gray-500">Email Terkirim</p>
+                            <p class="text-2xl font-semibold"><?php echo $email_stats['sent'] ?? 0; ?></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-yellow-100 text-yellow-600">
+                            <i class="fas fa-clock text-2xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-gray-500">Email Pending</p>
+                            <p class="text-2xl font-semibold"><?php echo $email_stats['pending'] ?? 0; ?></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-red-100 text-red-600">
+                            <i class="fas fa-times text-2xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-gray-500">Email Gagal</p>
+                            <p class="text-2xl font-semibold"><?php echo $email_stats['failed'] ?? 0; ?></p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
