@@ -1,5 +1,6 @@
 <?php
 include 'includes/header.php';
+require_once 'config/email.php';
 
 // Redirect jika tidak ada session temp_user_id
 if (!isset($_SESSION['temp_user_id'])) {
@@ -19,6 +20,7 @@ if ($user['verification_expires'] < date('Y-m-d H:i:s')) {
     // Hapus user jika kode expired
     mysqli_query($conn, "DELETE FROM users WHERE id = '$user_id'");
     unset($_SESSION['temp_user_id']);
+    $_SESSION['error'] = "Kode verifikasi telah kadaluarsa. Silakan daftar kembali.";
     header('Location: register.php');
     exit();
 }
@@ -27,7 +29,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (isset($_POST['verify'])) {
         $code = mysqli_real_escape_string($conn, $_POST['verification_code']);
         
-        if (verifyCode($user_id, $code)) {
+        if ($code === $user['verification_code']) {
+            // Update status verifikasi
+            mysqli_query($conn, "UPDATE users 
+                               SET is_verified = 1, 
+                                   verification_code = NULL, 
+                                   verification_expires = NULL 
+                               WHERE id = '$user_id'");
+            
             // Hapus session temporary
             unset($_SESSION['temp_user_id']);
             
@@ -39,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     } elseif (isset($_POST['resend'])) {
         // Generate kode baru
-        $new_code = generateVerificationCode();
+        $new_code = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
         $expires = date('Y-m-d H:i:s', strtotime('+10 minutes'));
         
         // Update kode verifikasi
@@ -48,11 +57,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                verification_expires = '$expires' 
                            WHERE id = '$user_id'");
         
-        // Kirim ulang kode
-        $response = sendWhatsAppVerification($user['telepon'], $user['nama'], $new_code);
-        
-        if ($response['success']) {
-            $success = "Kode verifikasi baru telah dikirim ke WhatsApp Anda.";
+        // Kirim ulang email
+        if (sendVerificationEmail($user['email'], $user['nama'], $new_code)) {
+            $success = "Kode verifikasi baru telah dikirim ke email Anda.";
         } else {
             $error = "Gagal mengirim ulang kode. Silakan coba lagi.";
         }
@@ -61,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 ?>
 
 <div class="max-w-md mx-auto bg-white rounded-lg shadow-md p-6 mt-8">
-    <h2 class="text-2xl font-bold text-center text-green-600 mb-6">Verifikasi WhatsApp</h2>
+    <h2 class="text-2xl font-bold text-center text-green-600 mb-6">Verifikasi Email</h2>
     
     <?php if (isset($error)): ?>
         <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -77,8 +84,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     <div class="text-center mb-6">
         <p class="text-gray-600">
-            Kami telah mengirim kode verifikasi ke WhatsApp Anda:<br>
-            <span class="font-semibold"><?php echo $user['telepon']; ?></span>
+            Kami telah mengirim kode verifikasi ke email Anda:<br>
+            <span class="font-semibold"><?php echo $user['email']; ?></span>
         </p>
     </div>
 
