@@ -74,13 +74,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         <div>
             <label class="block text-gray-700 text-sm font-bold mb-2" for="email">
-                Email
+                Email (untuk verifikasi)
             </label>
             <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                    id="email" 
                    type="email" 
                    name="email" 
+                   placeholder="contoh@email.com"
                    required>
+            <p class="text-sm text-gray-500 mt-1">Kode verifikasi akan dikirim ke email ini</p>
         </div>
 
         <div>
@@ -92,6 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                    type="tel" 
                    name="telepon" 
                    pattern="[0-9]+" 
+                   placeholder="081234567890"
                    required>
         </div>
 
