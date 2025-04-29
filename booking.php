@@ -57,6 +57,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         if (mysqli_query($conn, $query)) {
             $booking_id = mysqli_insert_id($conn);
+
+            // Buat pengingat pembayaran
+            createPaymentReminder($booking_id);
+
+            // Buat pengingat jadwal main
+            createScheduleReminder($booking_id);
+
+            // Kirim email konfirmasi booking
+            sendBookingConfirmationEmail($booking_id);
+
             header("Location: invoice.php?booking_id=" . $booking_id);
             exit();
         } else {
